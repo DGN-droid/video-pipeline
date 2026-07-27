@@ -17,7 +17,7 @@ def _get_client() -> genai.GenerativeModel:
         if not api_key:
             raise ValueError("GEMINI_API_KEY doit être défini dans l'environnement.")
         genai.configure(api_key=api_key)
-        return genai.GenerativeModel("gemini-1.5-flash")
+        return genai.GenerativeModel("gemini-2.5-flash")
     except Exception as exc:
         raise RuntimeError(f"Échec de la connexion à l'API Gemini : {exc}") from exc
 
