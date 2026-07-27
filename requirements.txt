@@ -4,3 +4,4 @@ supabase
 groq
 google-generativeai
 python-dotenv
+python-multipart
