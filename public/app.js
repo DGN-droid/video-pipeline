@@ -269,18 +269,26 @@ const handleFileUpload = async (file) => {
   }
 };
 
-chooseButton.addEventListener("click", () => fileInput.click());
+chooseButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  fileInput.click();
+});
 fileInput.addEventListener("change", async (event) => {
   const file = event.target.files[0];
   if (file) await handleFileUpload(file);
 });
+
+dropZone.addEventListener("click", () => fileInput.click());
 
 dropZone.addEventListener("dragover", (event) => {
   event.preventDefault();
   dropZone.classList.add("drag-over");
 });
 
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+dropZone.addEventListener("dragleave", (event) => {
+  event.preventDefault();
+  dropZone.classList.remove("drag-over");
+});
 
 dropZone.addEventListener("drop", async (event) => {
   event.preventDefault();
