@@ -52,6 +52,17 @@ def _build_srt_from_segments(segments: Optional[list]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
+def _validate_audio_extension(path: Path) -> None:
+    allowed_extensions = {".mp4", ".mp3", ".wav", ".m4a", ".mov", ".webm", ".flac", ".aac", ".ogg"}
+    suffix = path.suffix.lower()
+    if not suffix:
+        raise ValueError(f"Le fichier '{path}' doit avoir une extension reconnue pour la transcription.")
+    if suffix not in allowed_extensions:
+        raise ValueError(
+            f"Extension de fichier non prise en charge : '{suffix}'. Utilisez l'une des extensions suivantes : {', '.join(sorted(allowed_extensions))}."
+        )
+
+
 def transcribe_audio(file_path_or_bytes: Union[str, bytes, bytearray, BinaryIO]) -> tuple[str, str]:
     """Transcrit un fichier audio/vidéo avec Whisper et retourne le texte + le contenu SRT."""
     try:
@@ -59,50 +70,59 @@ def transcribe_audio(file_path_or_bytes: Union[str, bytes, bytearray, BinaryIO])
 
         if isinstance(file_path_or_bytes, (bytes, bytearray)):
             filename = "audio.wav"
-            file_obj = io.BytesIO(bytes(file_path_or_bytes))
+            file_bytes = bytes(file_path_or_bytes)
         elif isinstance(file_path_or_bytes, (str, os.PathLike)):
             path = Path(file_path_or_bytes)
             if not path.exists():
                 raise FileNotFoundError(f"Le fichier '{path}' est introuvable.")
+            _validate_audio_extension(path)
             filename = path.name
-            file_obj = path.open("rb")
+            with path.open("rb") as f:
+                file_bytes = f.read()
         elif hasattr(file_path_or_bytes, "read"):
             filename = "audio.wav"
-            file_obj = file_path_or_bytes
+            current_position = None
+            try:
+                current_position = file_path_or_bytes.tell()
+            except Exception:
+                current_position = None
+            file_path_or_bytes.seek(0, os.SEEK_SET)
+            file_bytes = file_path_or_bytes.read()
+            if current_position is not None:
+                try:
+                    file_path_or_bytes.seek(current_position)
+                except Exception:
+                    pass
         else:
             raise TypeError("Le paramètre doit être un chemin de fichier, des bytes ou un objet de type fichier.")
 
+        response = None
         try:
-            try:
-                file_obj.seek(0)
-                response = client.audio.transcriptions.create(
-                    file=(filename, file_obj),
-                    model="whisper-large-v3",
-                    response_format="srt",
-                )
-                if isinstance(response, str):
-                    return response.strip(), response.strip()
-            except Exception as first_error:
-                file_obj.seek(0)
-                response = client.audio.transcriptions.create(
-                    file=(filename, file_obj),
-                    model="whisper-large-v3",
-                    response_format="verbose_json",
-                )
+            response = client.audio.transcriptions.create(
+                model="whisper-large-v3",
+                file=(filename, file_bytes),
+                response_format="srt",
+            )
+            if isinstance(response, str):
+                return response.strip(), response.strip()
+        except Exception:
+            response = client.audio.transcriptions.create(
+                model="whisper-large-v3",
+                file=(filename, file_bytes),
+                response_format="verbose_json",
+            )
 
-                full_text = getattr(response, "text", None) or ""
-                segments = getattr(response, "segments", None) or []
-                srt_content = _build_srt_from_segments(segments)
-                return full_text.strip(), srt_content
-
-        finally:
-            if hasattr(file_obj, "close") and file_obj is not None:
-                file_obj.close()
+        full_text = getattr(response, "text", None) or ""
+        segments = getattr(response, "segments", None) or []
+        srt_content = _build_srt_from_segments(segments)
+        return full_text.strip(), srt_content
 
     except FileNotFoundError as exc:
         raise RuntimeError(f"Fichier introuvable : {exc}") from exc
     except TypeError as exc:
         raise RuntimeError(f"Type de fichier invalide : {exc}") from exc
+    except ValueError as exc:
+        raise RuntimeError(f"Extension de fichier invalide : {exc}") from exc
     except Exception as exc:
         error_message = str(exc).lower()
         if "quota" in error_message or "rate limit" in error_message or "limit" in error_message:
