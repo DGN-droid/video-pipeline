@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auto Video AI</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="page-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Auto Video AI</p>
+        <h1>Transcription, sous-titres et résumé vidéo en automatique</h1>
+        <p class="intro">Importez une courte vidéo et laissez le backend générer le texte, les sous-titres, un titre accrocheur et une description.</p>
+      </div>
+    </header>
+
+    <section class="card upload-card">
+      <div id="drop-zone" class="drop-zone">
+        <div class="drop-zone-content">
+          <span class="icon">📤</span>
+          <h2>Déposez votre vidéo ici</h2>
+          <p>ou cliquez pour sélectionner un fichier</p>
+          <span class="hint">Formats acceptés : mp4 / mov / avi / mkv / webm (max 40 Mo)</span>
+        </div>
+        <input type="file" id="file-input" accept="video/mp4,video/mov,video/avi,video/mkv,video/webm" hidden />
+      </div>
+      <div class="actions-row">
+        <button id="choose-button" class="btn btn-primary">Choisir une vidéo</button>
+        <div id="error-message" class="message message-error hidden"></div>
+      </div>
+    </section>
+
+    <section id="status-panel" class="card status-card hidden">
+      <div class="status-header">
+        <div>
+          <p class="status-label">État du traitement</p>
+          <h3 id="current-status">En attente</h3>
+        </div>
+        <div id="loader" class="loader hidden"></div>
+      </div>
+      <div id="progress-message" class="progress-message">Le traitement peut prendre quelques secondes.</div>
+      <div class="status-actions hidden" id="retry-actions">
+        <button id="retry-button" class="btn btn-secondary">Réessayer</button>
+      </div>
+    </section>
+
+    <section id="result-panel" class="card result-card hidden">
+      <div class="result-grid">
+        <div class="result-group">
+          <label for="title-input">Titre généré</label>
+          <input id="title-input" type="text" class="field" />
+        </div>
+        <div class="result-group">
+          <label for="description-input">Description générée</label>
+          <textarea id="description-input" rows="4" class="field"></textarea>
+        </div>
+      </div>
+
+      <div class="video-card">
+        <video id="video-player" controls class="video-player"></video>
+      </div>
+
+      <div class="result-actions">
+        <button id="download-srt" class="btn btn-primary">Télécharger le .srt</button>
+        <button id="copy-text" class="btn btn-secondary">Copier titre + description</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
