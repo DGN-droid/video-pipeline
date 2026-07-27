@@ -58,10 +58,10 @@ def _validate_video_file(filename: str, file_bytes: bytes) -> None:
         raise HTTPException(status_code=400, detail="Le fichier dépasse la limite autorisée de 40 Mo.")
 
 
-def _download_video_from_url(url: str) -> str:
+def _download_video_from_url(url: str, storage_path: str) -> str:
     request = Request(url, headers={"User-Agent": "FastAPI"})
     with urlopen(request, timeout=120) as response:
-        suffix = Path(url).suffix or ".mp4"
+        suffix = Path(storage_path).suffix or ".mp4"
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
         temp_file.write(response.read())
         temp_file.close()
@@ -112,7 +112,7 @@ def process_endpoint(request: ProcessRequest) -> Dict[str, Any]:
     if not video_url:
         raise HTTPException(status_code=404, detail="Vidéo introuvable dans Supabase.")
 
-    temp_path = _download_video_from_url(video_url)
+    temp_path = _download_video_from_url(video_url, storage_path)
     try:
         _upsert_video_result(video_id, {"video_id": video_id, "status": "processing", "storage_path": storage_path})
         transcription, srt_content = transcribe_audio(temp_path)
