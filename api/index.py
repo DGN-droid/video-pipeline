@@ -71,7 +71,7 @@ def _download_video_from_url(url: str) -> str:
 def _upsert_video_result(video_id: str, payload: Dict[str, Any]) -> None:
     client = _get_client()
     table = client.table("videos")
-    table.upsert({"video_id": video_id, **payload}).execute()
+    table.upsert({"video_id": video_id, **payload}, on_conflict="video_id").execute()
 
 
 @app.post("/api/create-upload-url")
