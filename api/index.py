@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from lib.cleanup import delete_old_videos
 from lib.gemini_client import generate_title_and_description
 from lib.groq_client import transcribe_audio
-from lib.supabase_client import _get_client, get_video_url, upload_video
+from lib.supabase_client import _get_client, create_signed_upload_url, get_video_url
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 MAX_FILE_SIZE_BYTES = 40 * 1024 * 1024
@@ -19,8 +19,28 @@ MAX_FILE_SIZE_BYTES = 40 * 1024 * 1024
 app = FastAPI()
 
 
+class CreateUploadUrlRequest(BaseModel):
+    filename: str
+    content_type: str
+
+
 class ProcessRequest(BaseModel):
     video_id: str
+    storage_path: Optional[str] = None
+
+
+def _validate_video_filename(filename: str) -> str:
+    if not filename:
+        raise HTTPException(status_code=400, detail="Le nom du fichier est requis.")
+
+    extension = Path(filename).suffix.lower()
+    if extension not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Type de fichier non pris en charge. Utilisez un fichier vidéo (.mp4, .mov, .avi, .mkv, .webm).",
+        )
+
+    return extension
 
 
 def _validate_video_file(filename: str, file_bytes: bytes) -> None:
@@ -54,32 +74,47 @@ def _upsert_video_result(video_id: str, payload: Dict[str, Any]) -> None:
     table.upsert({"video_id": video_id, **payload}).execute()
 
 
-@app.post("/upload")
-async def upload_endpoint(file: UploadFile = File(...)) -> Dict[str, str]:
-    file_bytes = await file.read()
-    _validate_video_file(file.filename, file_bytes)
-
+@app.post("/api/create-upload-url")
+def create_upload_url_endpoint(request: CreateUploadUrlRequest) -> Dict[str, str]:
+    extension = _validate_video_filename(request.filename)
     video_id = str(uuid.uuid4())
-    extension = Path(file.filename).suffix.lower()
-    storage_filename = f"{video_id}{extension}"
-    upload_video(file_bytes, storage_filename)
+    storage_path = f"{video_id}{extension}"
 
-    return {"video_id": video_id, "status": "uploaded"}
+    upload_info = create_signed_upload_url(storage_path)
+    _upsert_video_result(
+        video_id,
+        {
+            "video_id": video_id,
+            "status": "pending_upload",
+            "storage_path": storage_path,
+        },
+    )
+
+    return {
+        "video_id": video_id,
+        "upload_url": upload_info["signed_url"],
+        "storage_path": storage_path,
+        "headers": upload_info.get("headers", {}),
+    }
 
 
-@app.post("/process")
+@app.post("/api/process")
 def process_endpoint(request: ProcessRequest) -> Dict[str, Any]:
     video_id = request.video_id.strip()
     if not video_id:
         raise HTTPException(status_code=400, detail="Le paramètre video_id est requis.")
 
-    filename = f"{video_id}.mp4"
-    video_url = get_video_url(filename)
+    storage_path = request.storage_path or f"{video_id}.mp4"
+    if not storage_path:
+        raise HTTPException(status_code=400, detail="Le paramètre storage_path est requis.")
+
+    video_url = get_video_url(storage_path)
     if not video_url:
         raise HTTPException(status_code=404, detail="Vidéo introuvable dans Supabase.")
 
     temp_path = _download_video_from_url(video_url)
     try:
+        _upsert_video_result(video_id, {"video_id": video_id, "status": "processing", "storage_path": storage_path})
         transcription, srt_content = transcribe_audio(temp_path)
         metadata = generate_title_and_description(transcription)
         result_payload = {
@@ -89,6 +124,7 @@ def process_endpoint(request: ProcessRequest) -> Dict[str, Any]:
             "srt_content": srt_content,
             "transcription": transcription,
             "status": "done",
+            "storage_path": storage_path,
         }
         _upsert_video_result(video_id, result_payload)
         return result_payload

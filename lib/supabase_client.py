@@ -57,3 +57,22 @@ def get_video_url(filename: str, expires_in: int = 3600) -> Optional[str]:
         return response
     except Exception as exc:
         raise RuntimeError(f"Échec de la génération de l'URL signée pour '{filename}' : {exc}") from exc
+
+
+def create_signed_upload_url(storage_path: str) -> dict:
+    """Crée une URL signée pour un upload direct depuis le navigateur vers Supabase Storage."""
+    try:
+        client = _get_client()
+        bucket = client.storage.from_("videos")
+        response = bucket.create_signed_upload_url(path=storage_path)
+
+        if isinstance(response, dict):
+            return {
+                "signed_url": response.get("signed_url") or response.get("signedUrl"),
+                "headers": {},
+                "path": response.get("path", storage_path),
+            }
+
+        return {"signed_url": response, "headers": {}, "path": storage_path}
+    except Exception as exc:
+        raise RuntimeError(f"Échec de la génération de l'URL d'upload signée pour '{storage_path}' : {exc}") from exc

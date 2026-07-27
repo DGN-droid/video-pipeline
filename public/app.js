@@ -89,29 +89,44 @@ const validateFile = (file) => {
   }
 };
 
-const uploadFile = async (file) => {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const response = await fetch("/api/upload", {
+const requestUploadUrl = async (file) => {
+  const response = await fetch("/api/create-upload-url", {
     method: "POST",
-    body: formData,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename: file.name, content_type: file.type || "application/octet-stream" }),
   });
 
   if (!response.ok) {
-    const { error } = await response.json().catch(() => ({}));
-    throw new Error(error || "Échec de l'upload.");
+    const { detail, error } = await response.json().catch(() => ({}));
+    throw new Error(detail || error || "Impossible de créer l'URL d'upload.");
   }
 
-  const data = await response.json();
-  return data.video_id;
+  return response.json();
 };
 
-const processVideo = async (videoId) => {
+const uploadFile = async (file) => {
+  const uploadInfo = await requestUploadUrl(file);
+  const headers = uploadInfo.headers || {};
+  headers["Content-Type"] = file.type || "application/octet-stream";
+
+  const uploadResponse = await fetch(uploadInfo.upload_url, {
+    method: "PUT",
+    body: file,
+    headers,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`Erreur lors de l'upload direct vers Supabase (${uploadResponse.status}).`);
+  }
+
+  return uploadInfo;
+};
+
+const processVideo = async (videoId, storagePath) => {
   const response = await fetch("/api/process", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ video_id: videoId }),
+    body: JSON.stringify({ video_id: videoId, storage_path: storagePath }),
   });
 
   if (!response.ok) {
@@ -238,18 +253,18 @@ const handleFileUpload = async (file) => {
     videoPlayer.src = currentVideoFileUrl;
     videoPlayer.load();
 
-    const videoId = await uploadFile(file);
-    currentVideoId = videoId;
+    const uploadInfo = await uploadFile(file);
+    currentVideoId = uploadInfo.video_id;
     setStatus("Upload terminé");
     progressMessage.textContent = "Début du traitement automatique...";
 
-    await processVideo(videoId);
-    await pollStatus(videoId);
+    await processVideo(uploadInfo.video_id, uploadInfo.storage_path);
+    await pollStatus(uploadInfo.video_id);
   } catch (error) {
     toggleLoader(false);
     setStatus("Erreur");
     progressMessage.textContent = "Le traitement n'a pas pu démarrer.";
-    showError(error.message);
+    showError(error.message || "Une erreur est survenue pendant l'upload ou le traitement.");
     retryActions.classList.remove("hidden");
   }
 };
