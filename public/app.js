@@ -17,6 +17,8 @@ const descriptionInput = document.getElementById("description-input");
 const videoPlayer = document.getElementById("video-player");
 const downloadSrtButton = document.getElementById("download-srt");
 const copyTextButton = document.getElementById("copy-text");
+const burnButton = document.getElementById("burn-button");
+const burnDownloadLink = document.getElementById("burn-download-link");
 
 let currentVideoId = null;
 let currentVideoFile = null;
@@ -305,3 +307,47 @@ retryButton.addEventListener("click", async () => {
 
 downloadSrtButton.addEventListener("click", downloadSrt);
 copyTextButton.addEventListener("click", copyText);
+if (burnButton) {
+  burnButton.addEventListener("click", async () => {
+    if (!currentVideoId) return showError("Aucune vidéo à traiter.");
+    burnButton.disabled = true;
+    const originalText = burnButton.textContent;
+    burnButton.textContent = "Génération en cours... (peut prendre 1-2 minutes)";
+    clearError();
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes
+
+    try {
+      const resp = await fetch("/api/burn-subtitles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ video_id: currentVideoId }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || err.error || "Échec du rendu vidéo.");
+      }
+
+      const data = await resp.json();
+      if (data.status === "done" && data.download_url) {
+        burnDownloadLink.href = data.download_url;
+        burnDownloadLink.classList.remove("hidden");
+        burnDownloadLink.setAttribute('download', 'video-burned.mp4');
+      } else {
+        throw new Error(data.error || "Erreur inconnue pendant le rendu.");
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        showError('Le rendu a expiré (timeout). Réessayez plus tard.');
+      } else {
+        showError(err.message || 'Erreur lors de la génération.');
+      }
+    } finally {
+      burnButton.disabled = false;
+      burnButton.textContent = originalText;
+    }
+  });
+}

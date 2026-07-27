@@ -3,6 +3,7 @@ import tempfile
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
+import httpx
 from urllib.request import Request, urlopen
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
@@ -27,6 +28,10 @@ class CreateUploadUrlRequest(BaseModel):
 class ProcessRequest(BaseModel):
     video_id: str
     storage_path: Optional[str] = None
+
+
+class BurnRequest(BaseModel):
+    video_id: str
 
 
 def _validate_video_filename(filename: str) -> str:
@@ -98,6 +103,11 @@ def create_upload_url_endpoint(request: CreateUploadUrlRequest) -> Dict[str, Any
     }
 
 
+# Note: to store the processed download URL you may need to add a column to the
+# `videos` table. Example SQL:
+# ALTER TABLE videos ADD COLUMN download_url text;
+
+
 @app.post("/api/process")
 def process_endpoint(request: ProcessRequest) -> Dict[str, Any]:
     video_id = request.video_id.strip()
@@ -144,6 +154,63 @@ def process_endpoint(request: ProcessRequest) -> Dict[str, Any]:
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+
+@app.post("/api/burn-subtitles")
+def burn_subtitles_endpoint(request: BurnRequest) -> Dict[str, Any]:
+    video_id = request.video_id.strip()
+    if not video_id:
+        raise HTTPException(status_code=400, detail="Le paramètre video_id est requis.")
+
+    client = _get_client()
+    table = client.table("videos")
+    response = table.select("*").eq("video_id", video_id).execute()
+    rows = getattr(response, "data", None) or []
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"Aucune vidéo trouvée pour le video_id '{video_id}'.")
+
+    row = rows[0]
+    storage_path = row.get("storage_path")
+    srt_content = row.get("srt_content")
+    if not storage_path or not srt_content:
+        raise HTTPException(status_code=400, detail="storage_path ou srt_content manquant pour cette vidéo.")
+
+    video_url = get_video_url(storage_path)
+    if not video_url:
+        raise HTTPException(status_code=404, detail="Impossible de générer l'URL signée pour la vidéo source.")
+
+    # Update status to burning in progress
+    _upsert_video_result(video_id, {"status": "burning_in_progress"})
+
+    modal_url = os.getenv("MODAL_BURN_ENDPOINT_URL")
+    if not modal_url:
+        raise HTTPException(status_code=500, detail="MODAL_BURN_ENDPOINT_URL non configurée.")
+
+    payload = {
+        "video_id": video_id,
+        "video_url": video_url,
+        "srt_content": srt_content,
+        "supabase_url": os.getenv("SUPABASE_URL"),
+        "supabase_key": os.getenv("SUPABASE_KEY"),
+    }
+
+    try:
+        with httpx.Client(timeout=300.0) as client_http:
+            resp = client_http.post(modal_url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPError as exc:
+        _upsert_video_result(video_id, {"status": "burn_error", "error": str(exc)})
+        raise HTTPException(status_code=500, detail=f"Échec de l'appel au service de rendu: {exc}") from exc
+
+    if data.get("status") == "done":
+        download_url = data.get("download_url")
+        _upsert_video_result(video_id, {"status": "burn_done", "download_url": download_url})
+        return {"status": "done", "download_url": download_url}
+    else:
+        err = data.get("error") or "Erreur inconnue du service de rendu"
+        _upsert_video_result(video_id, {"status": "burn_error", "error": err})
+        raise HTTPException(status_code=500, detail=f"Burn failed: {err}")
 
 
 @app.get("/api/status")
