@@ -146,7 +146,7 @@ def process_endpoint(request: ProcessRequest) -> Dict[str, Any]:
             os.remove(temp_path)
 
 
-@app.get("/status")
+@app.get("/api/status")
 def status_endpoint(video_id: str = Query(..., min_length=1)) -> Dict[str, Any]:
     client = _get_client()
     table = client.table("videos")
@@ -169,6 +169,6 @@ def status_endpoint(video_id: str = Query(..., min_length=1)) -> Dict[str, Any]:
     return payload
 
 
-@app.get("/cleanup")
+@app.get("/api/cleanup")
 def cleanup_endpoint() -> Dict[str, Any]:
     return delete_old_videos()
