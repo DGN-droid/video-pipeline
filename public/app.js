@@ -22,7 +22,22 @@ let currentVideoId = null;
 let currentVideoFile = null;
 let currentVideoFileUrl = null;
 let currentSrtContent = null;
+let currentSrtTrackUrl = null;
 let pollingTimer = null;
+
+const revokeVideoFileUrl = () => {
+  if (currentVideoFileUrl) {
+    URL.revokeObjectURL(currentVideoFileUrl);
+    currentVideoFileUrl = null;
+  }
+};
+
+const revokeSrtTrackUrl = () => {
+  if (currentSrtTrackUrl) {
+    URL.revokeObjectURL(currentSrtTrackUrl);
+    currentSrtTrackUrl = null;
+  }
+};
 
 const showError = (message) => {
   errorMessage.textContent = message;
@@ -57,6 +72,7 @@ const resetUI = () => {
   retryActions.classList.add("hidden");
   toggleLoader(false);
   clearError();
+  revokeSrtTrackUrl();
 };
 
 const isValidVideoFile = (file) => {
@@ -116,6 +132,7 @@ const fetchStatus = async (videoId) => {
 };
 
 const createSrtBlobUrl = (srtText) => {
+  revokeSrtTrackUrl();
   const vttText = srtText
     .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2")
     .replace(/^(\d+)$/gm, "")
@@ -123,7 +140,8 @@ const createSrtBlobUrl = (srtText) => {
 
   const formatted = `WEBVTT\n\n${vttText}`;
   const blob = new Blob([formatted], { type: "text/vtt" });
-  return URL.createObjectURL(blob);
+  currentSrtTrackUrl = URL.createObjectURL(blob);
+  return currentSrtTrackUrl;
 };
 
 const downloadSrt = () => {
@@ -205,6 +223,7 @@ const pollStatus = async (videoId) => {
 };
 
 const handleFileUpload = async (file) => {
+  revokeVideoFileUrl();
   resetUI();
   try {
     validateFile(file);
@@ -213,6 +232,11 @@ const handleFileUpload = async (file) => {
     toggleLoader(true);
     setStatus("Upload en cours");
     progressMessage.textContent = "Envoi de la vidéo vers le serveur...";
+
+    currentVideoFile = file;
+    currentVideoFileUrl = URL.createObjectURL(file);
+    videoPlayer.src = currentVideoFileUrl;
+    videoPlayer.load();
 
     const videoId = await uploadFile(file);
     currentVideoId = videoId;
