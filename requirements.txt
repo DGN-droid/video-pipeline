@@ -1,0 +1,4 @@
+supabase
+groq
+google-generativeai
+python-dotenv
