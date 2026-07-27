@@ -17,7 +17,16 @@ def _get_client() -> genai.GenerativeModel:
         if not api_key:
             raise ValueError("GEMINI_API_KEY doit être défini dans l'environnement.")
         genai.configure(api_key=api_key)
-        return genai.GenerativeModel("gemini-2.5-flash")
+        model_name = "gemini-3.5-flash-lite"
+        try:
+            return genai.GenerativeModel(model_name)
+        except Exception as inner_exc:
+            sdk_version = getattr(genai, "__version__", "inconnue")
+            raise RuntimeError(
+                f"Le SDK google-generativeai v{sdk_version} ne prend pas en charge le modèle '{model_name}'. "
+                "Mettez à jour vers une version plus récente ou passez au package 'google.genai'. "
+                f"Erreur d'initialisation du modèle : {inner_exc}"
+            ) from inner_exc
     except Exception as exc:
         raise RuntimeError(f"Échec de la connexion à l'API Gemini : {exc}") from exc
 
