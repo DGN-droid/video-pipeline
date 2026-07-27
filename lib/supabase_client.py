@@ -1,9 +1,20 @@
+import json
+import logging
 import os
 from typing import Optional
 
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
+try:
+    from storage3.exceptions import StorageApiError
+except ImportError:
+    StorageApiError = Exception
+
+try:
+    import httpx
+except ImportError:
+    httpx = None
 
 load_dotenv()
 
@@ -59,11 +70,31 @@ def get_video_url(filename: str, expires_in: int = 3600) -> Optional[str]:
         raise RuntimeError(f"Échec de la génération de l'URL signée pour '{filename}' : {exc}") from exc
 
 
+def _extract_response_body(exc: Exception) -> str:
+    response_body = ""
+
+    if hasattr(exc, "response") and exc.response is not None:
+        try:
+            response_body = exc.response.text
+        except Exception:
+            response_body = str(exc.response)
+
+        if response_body:
+            try:
+                parsed = json.loads(response_body)
+                response_body = json.dumps(parsed, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+
+    return response_body or "<corps de réponse introuvable>"
+
+
 def create_signed_upload_url(storage_path: str) -> dict:
     """Crée une URL signée pour un upload direct depuis le navigateur vers Supabase Storage."""
+    client = _get_client()
+    bucket = client.storage.from_("videos")
+
     try:
-        client = _get_client()
-        bucket = client.storage.from_("videos")
         response = bucket.create_signed_upload_url(path=storage_path)
 
         if isinstance(response, dict):
@@ -74,5 +105,24 @@ def create_signed_upload_url(storage_path: str) -> dict:
             }
 
         return {"signed_url": response, "headers": {}, "path": storage_path}
+    except StorageApiError as exc:
+        status_code = getattr(exc, "status_code", "inconnu")
+        response_body = _extract_response_body(exc)
+        error_message = (
+            f"StorageApiError (HTTP {status_code}) lors de la génération de l'URL d'upload signée pour '{storage_path}'."
+            f" Réponse : {response_body}"
+        )
+        logging.error(error_message)
+        raise RuntimeError(error_message) from exc
     except Exception as exc:
+        if httpx is not None and isinstance(exc, httpx.HTTPStatusError):
+            status_code = exc.response.status_code if exc.response is not None else "inconnu"
+            response_body = _extract_response_body(exc)
+            error_message = (
+                f"HTTPStatusError (HTTP {status_code}) lors de la génération de l'URL d'upload signée pour '{storage_path}'."
+                f" Réponse : {response_body}"
+            )
+            logging.error(error_message)
+            raise RuntimeError(error_message) from exc
+
         raise RuntimeError(f"Échec de la génération de l'URL d'upload signée pour '{storage_path}' : {exc}") from exc
