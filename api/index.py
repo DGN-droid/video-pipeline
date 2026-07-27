@@ -75,7 +75,7 @@ def _upsert_video_result(video_id: str, payload: Dict[str, Any]) -> None:
 
 
 @app.post("/api/create-upload-url")
-def create_upload_url_endpoint(request: CreateUploadUrlRequest) -> Dict[str, str]:
+def create_upload_url_endpoint(request: CreateUploadUrlRequest) -> Dict[str, Any]:
     extension = _validate_video_filename(request.filename)
     video_id = str(uuid.uuid4())
     storage_path = f"{video_id}{extension}"
