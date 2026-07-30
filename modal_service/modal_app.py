@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 import subprocess
 import requests
@@ -41,36 +42,34 @@ def burn_subtitles_handler(payload: dict) -> dict:
     except Exception as exc:
         return {"status": "error", "error": f"{debug_info} | Échec du téléchargement de la vidéo: {exc}"}
 
+    work_dir = tempfile.mkdtemp()
+    in_path = os.path.join(work_dir, f"input{suffix}")
+    srt_path = os.path.join(work_dir, "subs.srt")
+    out_path = os.path.join(work_dir, f"output{suffix}")
+
     try:
-        in_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-        for chunk in resp.iter_content(chunk_size=8192):
-            if chunk:
-                in_tmp.write(chunk)
-        in_tmp.flush()
-        in_tmp.close()
+        with open(in_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
 
-        srt_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".srt")
-        srt_tmp.write(srt_content.encode("utf-8"))
-        srt_tmp.flush()
-        srt_tmp.close()
-
-        out_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-        out_tmp.close()
+        with open(srt_path, "w", encoding="utf-8") as f:
+            f.write(srt_content)
 
         # Run ffmpeg to burn subtitles
         cmd = [
             "ffmpeg",
             "-y",
             "-i",
-            in_tmp.name,
+            os.path.basename(in_path),
             "-vf",
-            f"subtitles={srt_tmp.name}",
+            "subtitles=subs.srt",
             "-c:a",
             "copy",
-            out_tmp.name,
+            os.path.basename(out_path),
         ]
 
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True, cwd=work_dir)
         if proc.returncode != 0:
             err = proc.stderr or proc.stdout
             return {"status": "error", "error": f"{debug_info} | ffmpeg failed: {err}"}
@@ -80,7 +79,7 @@ def burn_subtitles_handler(payload: dict) -> dict:
             client = create_client(supabase_url, supabase_key)
             bucket = client.storage.from_("videos-processed")
             filename = f"{video_id}.mp4"
-            with open(out_tmp.name, "rb") as fh:
+            with open(out_path, "rb") as fh:
                 bucket.upload(path=filename, file=fh.read())
 
             signed = bucket.create_signed_url(path=filename, expires_in=24 * 3600)
@@ -92,15 +91,8 @@ def burn_subtitles_handler(payload: dict) -> dict:
             return {"status": "done", "download_url": download_url}
         except Exception as exc:
             return {"status": "error", "error": f"Échec de l'upload vers Supabase: {exc}"}
-
     finally:
-        # Clean up temp files
-        for p in [locals().get("in_tmp"), locals().get("srt_tmp"), locals().get("out_tmp")]:
-            try:
-                if p and Path(p.name).exists():
-                    Path(p.name).unlink()
-            except Exception:
-                pass
+        shutil.rmtree(work_dir, ignore_errors=True)
 
 
 # Minimal wrapper for Modal web endpoint compatibility.
