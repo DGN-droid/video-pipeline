@@ -94,7 +94,7 @@ def burn_subtitles_handler(payload: dict) -> dict:
             bucket = client.storage.from_("videos-processed")
             filename = f"{video_id}.mp4"
             with open(out_path, "rb") as fh:
-                bucket.upload(path=filename, file=fh.read())
+                bucket.upload(path=filename, file=fh.read(), file_options={"upsert": "true"})
 
             signed = bucket.create_signed_url(path=filename, expires_in=24 * 3600)
             if isinstance(signed, dict):
