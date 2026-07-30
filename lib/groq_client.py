@@ -30,6 +30,12 @@ def _format_srt_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds_part:02d},{milliseconds:03d}"
 
 
+def _get_field(obj, key):
+    if isinstance(obj, dict):
+        return obj.get(key)
+    return getattr(obj, key, None)
+
+
 def _build_srt_from_segments(segments: Optional[list]) -> str:
     """Construit un contenu SRT à partir des segments retournés par l'API."""
     if not segments:
@@ -37,9 +43,9 @@ def _build_srt_from_segments(segments: Optional[list]) -> str:
 
     lines: list[str] = []
     for index, segment in enumerate(segments, start=1):
-        start = getattr(segment, "start", None)
-        end = getattr(segment, "end", None)
-        text = getattr(segment, "text", None) or ""
+        start = _get_field(segment, "start")
+        end = _get_field(segment, "end")
+        text = _get_field(segment, "text") or ""
 
         if start is None or end is None:
             continue
@@ -96,24 +102,15 @@ def transcribe_audio(file_path_or_bytes: Union[str, bytes, bytearray, BinaryIO])
         else:
             raise TypeError("Le paramètre doit être un chemin de fichier, des bytes ou un objet de type fichier.")
 
-        response = None
-        try:
-            response = client.audio.transcriptions.create(
-                model="whisper-large-v3",
-                file=(filename, file_bytes),
-                response_format="srt",
-            )
-            if isinstance(response, str):
-                return response.strip(), response.strip()
-        except Exception:
-            response = client.audio.transcriptions.create(
-                model="whisper-large-v3",
-                file=(filename, file_bytes),
-                response_format="verbose_json",
-            )
+        response = client.audio.transcriptions.create(
+            model="whisper-large-v3",
+            file=(filename, file_bytes),
+            response_format="verbose_json",
+        )
 
-        full_text = getattr(response, "text", None) or ""
-        segments = getattr(response, "segments", None) or []
+        full_text = _get_field(response, "text") or ""
+        segments = _get_field(response, "segments") or []
+        print(f"[DEBUG] Groq response type={type(response)} | segments_count={len(segments)}")
         srt_content = _build_srt_from_segments(segments)
         return full_text.strip(), srt_content
 
