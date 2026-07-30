@@ -80,7 +80,10 @@ def burn_subtitles_handler(payload: dict) -> dict:
             os.path.basename(out_path),
         ]
 
-        proc = subprocess.run(cmd, capture_output=True, text=True, cwd=work_dir)
+        env = os.environ.copy()
+        env["HOME"] = "/tmp"
+
+        proc = subprocess.run(cmd, capture_output=True, text=True, cwd=work_dir, env=env)
         if proc.returncode != 0:
             err = proc.stderr or proc.stdout
             return {"status": "error", "error": f"{diagnostic} | ffmpeg failed: {err}"}
