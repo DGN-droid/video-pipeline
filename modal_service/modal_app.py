@@ -57,6 +57,17 @@ def burn_subtitles_handler(payload: dict) -> dict:
             f.write(srt_content)
 
         # Run ffmpeg to burn subtitles
+        import stat
+        srt_exists = os.path.exists(srt_path)
+        srt_size = os.path.getsize(srt_path) if srt_exists else -1
+        srt_perms = oct(os.stat(srt_path).st_mode) if srt_exists else "N/A"
+        dir_listing = os.listdir(work_dir)
+
+        diagnostic = (
+            f"work_dir={work_dir} | dir_listing={dir_listing} | "
+            f"srt_exists={srt_exists} | srt_size={srt_size} | srt_perms={srt_perms}"
+        )
+
         cmd = [
             "ffmpeg",
             "-y",
@@ -72,7 +83,7 @@ def burn_subtitles_handler(payload: dict) -> dict:
         proc = subprocess.run(cmd, capture_output=True, text=True, cwd=work_dir)
         if proc.returncode != 0:
             err = proc.stderr or proc.stdout
-            return {"status": "error", "error": f"{debug_info} | ffmpeg failed: {err}"}
+            return {"status": "error", "error": f"{diagnostic} | ffmpeg failed: {err}"}
 
         # Upload to Supabase processed bucket
         try:
