@@ -17,7 +17,7 @@ app = modal.App(name="video-pipeline-burn-subtitles", image=image)
 # This file is intended to be deployed on Modal.com as a separate service.
 # It exposes a web endpoint `burn_subtitles` which receives a signed video URL
 # and .srt content, burns the subtitles into the video with ffmpeg and uploads
-# the processed file to the Supabase bucket `videos-processed`.
+# the processed file to the Supabase bucket `videos-processed ...
 
 def burn_subtitles_handler(payload: dict) -> dict:
     required = ["video_id", "video_url", "storage_path", "srt_content", "supabase_url", "supabase_key"]
