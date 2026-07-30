@@ -31,15 +31,17 @@ def burn_subtitles_handler(payload: dict) -> dict:
     supabase_url = payload["supabase_url"]
     supabase_key = payload["supabase_key"]
 
+    suffix = Path(storage_path).suffix or ".mp4"
+    debug_info = f"[DEBUG] storage_path reçu: '{storage_path}' | suffix calculé: '{suffix}'"
+
     try:
         # Download source video
         resp = requests.get(video_url, stream=True, timeout=120)
         resp.raise_for_status()
     except Exception as exc:
-        return {"status": "error", "error": f"Échec du téléchargement de la vidéo: {exc}"}
+        return {"status": "error", "error": f"{debug_info} | Échec du téléchargement de la vidéo: {exc}"}
 
     try:
-        suffix = Path(storage_path).suffix or ".mp4"
         in_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
         for chunk in resp.iter_content(chunk_size=8192):
             if chunk:
@@ -71,7 +73,7 @@ def burn_subtitles_handler(payload: dict) -> dict:
         proc = subprocess.run(cmd, capture_output=True, text=True)
         if proc.returncode != 0:
             err = proc.stderr or proc.stdout
-            return {"status": "error", "error": f"ffmpeg failed: {err}"}
+            return {"status": "error", "error": f"{debug_info} | ffmpeg failed: {err}"}
 
         # Upload to Supabase processed bucket
         try:
