@@ -189,6 +189,7 @@ def burn_subtitles_endpoint(request: BurnRequest) -> Dict[str, Any]:
     payload = {
         "video_id": video_id,
         "video_url": video_url,
+        "storage_path": storage_path,
         "srt_content": srt_content,
         "supabase_url": os.getenv("SUPABASE_URL"),
         "supabase_key": os.getenv("SUPABASE_KEY"),

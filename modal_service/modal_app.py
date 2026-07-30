@@ -19,13 +19,14 @@ app = modal.App(name="video-pipeline-burn-subtitles", image=image)
 # the processed file to the Supabase bucket `videos-processed`.
 
 def burn_subtitles_handler(payload: dict) -> dict:
-    required = ["video_id", "video_url", "srt_content", "supabase_url", "supabase_key"]
+    required = ["video_id", "video_url", "storage_path", "srt_content", "supabase_url", "supabase_key"]
     for key in required:
         if key not in payload:
             return {"status": "error", "error": f"Paramètre manquant: {key}"}
 
     video_id = payload["video_id"]
     video_url = payload["video_url"]
+    storage_path = payload["storage_path"]
     srt_content = payload["srt_content"]
     supabase_url = payload["supabase_url"]
     supabase_key = payload["supabase_key"]
@@ -38,7 +39,7 @@ def burn_subtitles_handler(payload: dict) -> dict:
         return {"status": "error", "error": f"Échec du téléchargement de la vidéo: {exc}"}
 
     try:
-        suffix = Path(video_url).suffix or ".mp4"
+        suffix = Path(storage_path).suffix or ".mp4"
         in_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
         for chunk in resp.iter_content(chunk_size=8192):
             if chunk:
