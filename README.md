@@ -15,10 +15,9 @@ Automated video processing pipeline designed for subtitle generation, segment bu
 
 ### Tech Stack
 
-- **Backend / Processing**: Python, Modal Service
-- **Frontend / Integration**: JavaScript, HTML5, CSS3
-- **Deployment**: Vercel
-- **Configuration**: API Markdown, Requirements.txt
+- **Backend / Processing**: ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) ![Modal](https://img.shields.io/badge/Modal-000000?style=flat-square&logo=cloud&logoColor=white)
+- **Frontend / Integration**: ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black) ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white) ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white)
+- **Deployment**: ![Vercel](https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white)
 
 ---
 
@@ -30,7 +29,7 @@ Automated video processing pipeline designed for subtitle generation, segment bu
 
 ### Installation & Setup
 
- **Clone the repository:**
-   ```bash
-   git clone [https://github.com/DGN-droid/video-pipeline.git](https://github.com/DGN-droid/video-pipeline.git)
-   cd video-pipeline
+**Clone the repository:**
+```bash
+git clone [https://github.com/DGN-droid/video-pipeline.git](https://github.com/DGN-droid/video-pipeline.git)
+cd video-pipeline
