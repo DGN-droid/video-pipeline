@@ -30,7 +30,7 @@ Automated video processing pipeline designed for subtitle generation, segment bu
 
 ### Installation & Setup
 
-1. **Clone the repository:**
+ **Clone the repository:**
    ```bash
    git clone [https://github.com/DGN-droid/video-pipeline.git](https://github.com/DGN-droid/video-pipeline.git)
    cd video-pipeline
